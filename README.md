@@ -1,6 +1,6 @@
 # Matrix Multiply-Accumulate(MMA) on GPU 
 ### Sample code for undergrads on the Capstone Project Course
-To implement and meature performance of Matrix Multiply-Accumulate(like D = A * B + C) on CPU, GPU (with/without Tensor Cores), respectively.
+To implement and measure performance of Matrix Multiply-Accumulate(like D = A * B + C) on CPU, GPU (with/without Tensor Cores), respectively.
 
 #### matrix_cpu
 includes sample code of MMA with a single thread on CPU
