@@ -26,3 +26,20 @@ $ nvcc -o main main.cu -arch sm_75
 7.0 <=> Volta (Titian V / Quadro GV100)
 
 7.5 <=> Turing (RTX 2080/ RTX 2080 Ti / Quadro RTX 6000)
+
+---
+
+### References
+- Programming Tensor Cores in CUDA 9
+   - https://devblogs.nvidia.com/programming-tensor-cores-cuda-9/
+- How to Implement Performance Metrics in CUDA C/C++
+   - https://devblogs.nvidia.com/how-implement-performance-metrics-cuda-cc/
+- NVIDIA Turing Architecture Whitepaper
+   - https://www.nvidia.com/content/dam/en-zz/Solutions/design-visualization/technologies/turing-architecture/NVIDIA-Turing-Architecture-Whitepaper.pdf
+- NVIDIA Volta Architecture Whitepaper
+   - http://images.nvidia.com/content/volta-architecture/pdf/volta-architecture-whitepaper.pdf
+- Tensorコアを使ってみた
+  - http://proc-cpuinfo.fixstars.com/2018/10/tensorcore/
+- CUTLASS: Fast Linear Algebra in CUDA C++
+   - https://devblogs.nvidia.com/cutlass-linear-algebra-cuda/
+
