@@ -104,9 +104,27 @@ cudaError_t CalcByWMMA(half *A, half *B, float *C, float *D)
 	gridDim.x = (M_TOTAL + (M * blockDim.x / WARP_SIZE - 1)) / (M * blockDim.x / WARP_SIZE);
 	gridDim.y = (N_TOTAL + N * blockDim.y - 1) / (N * blockDim.y);
 
+	// for Performance Metrics
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start);
+	
 	WMMAF16TensorCore <<<gridDim, blockDim >>>(A, B, C, D);
 	cuda_status = cudaDeviceSynchronize();
 
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+
+	float milliseconds = 0;
+	cudaEventElapsedTime(&milliseconds, start, stop);
+
+	// for Performance Metrics
+	printf("[+] GPU(with Tensor Cores) Elapsed Time: %f ms\n", milliseconds);
+	// references from https://devblogs.nvidia.com/how-implement-performance-metrics-cuda-cc/
+	printf("[+] TFLOPS: %.2f\n", ((double)M_TOTAL * N_TOTAL* K_TOTAL * 2) / milliseconds / 1e9);
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
 
 	return cuda_status;
 }
@@ -142,12 +160,28 @@ cudaError_t CalcByCUDA(half *A, half *B, float *C, float *R)
 	gridDim.x = (M_TOTAL + (M * blockDim.x / WARP_SIZE - 1)) / (M * blockDim.x / WARP_SIZE);
 	gridDim.y = (N_TOTAL + N * blockDim.y - 1) / (N * blockDim.y);
 
+	// for Performance Metrics
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start);
+
+
 	cuda_matrix_mul <<<gridDim, blockDim >> > (A, B, R);
 	cuda_status = cudaDeviceSynchronize();
-
 	cuda_matrix_add<<<gridDim, blockDim >> > (R, C, R);
 	cuda_status = cudaDeviceSynchronize();
+	
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
 
+	float milliseconds = 0;
+	cudaEventElapsedTime(&milliseconds, start, stop);
+
+	printf("[+] GPU(without Tensor Cores) Elapsed Time: %f ms\n", milliseconds);
+	printf("[+] TFLOPS: %.2f\n", ((double)M_TOTAL * N_TOTAL* K_TOTAL * 2) / milliseconds / 1e9);
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
 
 	return cuda_status;
 }
@@ -219,66 +253,30 @@ int main()
 	printf("[+]   B: %d x %d\n", K_TOTAL, N_TOTAL);
 	printf("[+]   C: %d x %d\n", M_TOTAL, N_TOTAL);
 
-	// for Performance Metrics
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-
-// computing with tensor core
-	printf("[*] Computing D = A * B + C on GPU with Tensor Cores...");
-	// D = A * B +C, D holds the result after ret
-	cudaEventRecord(start);
-	cuda_status = CalcByWMMA(A, B, C, D);
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-
-	float milliseconds = 0;
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("OK\n");
-
-	// for Performance Metrics
-
-	printf("[+] GPU(with Tensor Cores) Elapsed Time: %f ms\n", milliseconds);
-	// references from https://devblogs.nvidia.com/how-implement-performance-metrics-cuda-cc/
-	printf("[+] TFLOPS: %.2f\n", ((double)M_TOTAL * N_TOTAL* K_TOTAL * 2) / milliseconds / 1e9);
-
-
-// computing with CUDA
-	cudaEventDestroy(start);
-	cudaEventDestroy(stop);
-
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	cudaEventRecord(start);
-
-	printf("[*] Computing D = A * B + C on GPU without Tensor Cores...");
-	cudaEventRecord(start);
+	// computing with CUDA
+	printf("[*] Computing D = A * B + C on GPU without Tensor Cores...\n");
 	cuda_status = CalcByCUDA(A, B, C, D2);
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
 
-	milliseconds = 0;
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("OK\n");
+	// computing with tensor core
+	printf("[*] Computing D = A * B + C on GPU with Tensor Cores...\n");
+	// D = A * B +C, D holds the result after ret
+	cuda_status = CalcByWMMA(A, B, C, D);
+
 	
-	printf("[+] GPU(without Tensor Cores) Elapsed Time: %f ms\n", milliseconds);
-	printf("[+] TFLOPS: %.2f\n", ((double)M_TOTAL * N_TOTAL* K_TOTAL * 2) / milliseconds / 1e9);
-
-
 // computing with CPU
 	printf("[*] Computing D = A * B + C  on CPU...");
 	int begintime, endtime;
 	begintime = clock();
-	//CalcByCPU(hostA, hostB, C, hostD);
+	CalcByCPU(hostA, hostB, C, hostD);
 	endtime = clock();
 	printf("OK\n");
-	printf("[*] CPU Elapsed Time: %fs\n", 2095.723);
+	printf("[*] CPU Elapsed Time: %fs\n", (endtime-begintime)/1000.0f);
 
 // Verification
 	printf("[*] Verifying result...\n");
 	for (int i = 0; i < M_TOTAL * N_TOTAL; i++) {
-		//if (fabs(D[i] - hostD[i]) > 0.1f)
-			//printf("[-] Mismatch index=%d TensorCore=%f HOST=%f\n", i, D[i], hostD[i]);
+		if (fabs(D[i] - hostD[i]) > 0.1f)
+			printf("[-] Mismatch index=%d TensorCore=%f HOST=%f\n", i, D[i], hostD[i]);
 	}
 	printf("[+] Verification End\n");
 

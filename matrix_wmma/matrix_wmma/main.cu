@@ -102,9 +102,27 @@ cudaError_t CalcWMMA(half *A, half *B, float *C, float *D)
 	gridDim.x = (M_TOTAL + (M * blockDim.x / WARP_SIZE - 1)) / (M * blockDim.x / WARP_SIZE);
 	gridDim.y = (N_TOTAL + N * blockDim.y - 1) / (N * blockDim.y);
 
+	// for Performance Metrics
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start);
+
 	WMMAF16TensorCore<<<gridDim, blockDim>>>(A, B, C, D);
 	cuda_status = cudaDeviceSynchronize();
 	
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+
+	float milliseconds = 0;
+	cudaEventElapsedTime(&milliseconds, start, stop);
+
+	// for Performance Metrics
+	printf("[+] GPU(with Tensor Cores) Elapsed Time: %f ms\n", milliseconds);
+	// references from https://devblogs.nvidia.com/how-implement-performance-metrics-cuda-cc/
+	printf("[+] TFLOPS: %.2f\n", ((double)M_TOTAL * N_TOTAL* K_TOTAL * 2) / milliseconds / 1e9);
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
 
 	return cuda_status;
 }
@@ -140,29 +158,11 @@ int main()
 	printf("[+]   B: %d x %d\n", K_TOTAL, N_TOTAL);
 	printf("[+]   C: %d x %d\n", M_TOTAL, N_TOTAL);
 	
-	// for Performance Metrics
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	cudaEventRecord(start);
-
 	// computing gemm using tensor core
 	printf("[*] Computing D = A * B +C with Tensor Cores...\n");
 	// D = A * B +C, D holds the result after ret
 	cuda_status = CalcWMMA(A, B, C, D);
 	
-
-	// for Performance Metrics
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-
-	float milliseconds = 0;
-	cudaEventElapsedTime(&milliseconds, start, stop);
-
-	printf("[+] GPU Elapsed Time: %f ms\n", milliseconds);
-	// references from https://devblogs.nvidia.com/how-implement-performance-metrics-cuda-cc/
-	printf("[+] TFLOPS: %.2f\n", ((double)M_TOTAL * N_TOTAL* K_TOTAL * 2) / milliseconds / 1e9);
-
 	cuda_status = cudaDeviceReset();
 	if (cuda_status != cudaSuccess) {
 		printf("cudaDeviceReset failed! ");
